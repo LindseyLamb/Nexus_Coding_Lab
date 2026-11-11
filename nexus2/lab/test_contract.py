@@ -9,6 +9,7 @@ class Contract(unittest.TestCase):
     def setUp(self): self.s = build()
     def command(self, role="manager", reason=SECRET, customer_id="c1"):
         return self.s.lifecycle.deactivate(Actor("u-review", role), customer_id, reason)
+
     def test_01_reason_stays_out_of_public_event(self):
         self.command()
         self.assertEqual(len(self.s.bus.published), 1)
@@ -18,33 +19,41 @@ class Contract(unittest.TestCase):
         self.assertEqual(event.payload.get("email"), "case@example.com")
         self.assertNotIn(SECRET, repr(self.s.bus.published))
         self.assertNotIn("reason", event.payload)
+
     def test_02_customer_gets_generic_notification(self):
         self.command()
         self.assertEqual(self.s.client.sent_messages,
             [("case@example.com", "Your Atlas account has been deactivated.")])
+
     def test_03_reason_is_retained_in_internal_audit(self):
         self.command(reason="  " + SECRET + "  ")
         self.assertEqual(audit_records(self.s),
             [{"customer_id":"c1", "actor_id":"u-review", "reason":SECRET}])
+
     def test_04_success_preserves_customer_result(self):
         result = self.command(role="admin")
         self.assertEqual(result.customer_id, "c1")
         self.assertFalse(result.active)
         self.assertFalse(self.s.repository.get("c1").active)
+
     def test_05_denied_command_has_no_effects(self):
         with self.assertRaises(AuthorizationError): self.command(role="viewer")
         self.assert_no_effects()
+
     def test_06_short_reason_has_no_effects(self):
         with self.assertRaises(ValueError): self.command(reason="  no  ")
         self.assert_no_effects()
+
     def test_07_missing_customer_has_no_effects(self):
         with self.assertRaises(CustomerNotFoundError): self.command(customer_id="missing")
         self.assert_no_effects()
+
     def assert_no_effects(self):
         self.assertTrue(self.s.repository.get("c1").active)
         self.assertEqual(self.s.bus.published, [])
         self.assertEqual(self.s.client.sent_messages, [])
         self.assertEqual(audit_records(self.s), [])
+        
     def test_08_notification_failure_does_not_erase_audit(self):
         def fail(*args): raise RuntimeError("simulated notification failure")
         self.s.client.send = fail

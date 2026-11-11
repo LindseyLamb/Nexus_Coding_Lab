@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from .errors import AuthorizationError
+from .events import *
 
 
 @dataclass(frozen=True)

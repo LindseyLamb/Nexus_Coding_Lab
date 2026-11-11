@@ -16,3 +16,6 @@ class AuthorizationError(NorthstarError):
 
 class ReportError(NorthstarError):
     pass
+
+class BusNameError(NorthstarError):
+    pass

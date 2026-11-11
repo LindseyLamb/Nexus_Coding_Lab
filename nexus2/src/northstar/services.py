@@ -1,7 +1,7 @@
 import uuid
 
 from .auth import Actor, AuthorizationService
-from .events import DomainEvent, EventBus
+from .events import EventBus, DomainEvent, EVENT_BUSNAME_AUDIT, EVENT_BUSNAME_GENERAL
 from .errors import CustomerNotFoundError
 from .models import Customer, CustomerTier
 from .policies import CustomerValidationPolicy
@@ -71,13 +71,22 @@ class CustomerLifecycleService:
         if len(reason.strip()) < 5:
             raise ValueError("deactivation reason must contain at least five characters")
 
+        self._events.publish(
+        DomainEvent(
+            event_type="customer.deactivated",
+            customer_id=customer.customer_id,
+            payload={"email": customer.email, "reason": reason.strip(), "actor_id": actor.user_id},
+            ),
+            EVENT_BUSNAME_AUDIT
+        )
+
         customer.active = False
         self._repository.save(customer)
         self._events.publish(
             DomainEvent(
                 event_type="customer.deactivated",
                 customer_id=customer.customer_id,
-                payload={"email": customer.email, "reason": reason.strip()},
+                payload={"email": customer.email},
             )
         )
         return customer
