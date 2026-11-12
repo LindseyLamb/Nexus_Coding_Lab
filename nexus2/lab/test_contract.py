@@ -64,4 +64,40 @@ class Contract(unittest.TestCase):
         self.assertNotIn(SECRET, repr(self.s.bus.published))
         self.assertEqual(self.s.client.sent_messages, [])
 
+    def test_09_second_public_subscriber_cannot_see_reason(self):
+        # A second public subscriber should only receive
+        # the sanitized customer.deactivated event.
+        received_events = []
+
+        class SecondSubscriber:
+            def handle(self, event):
+                received_events.append(event)
+
+        self.s.bus.subscribe(SecondSubscriber())
+
+        self.command(reason="  " + SECRET + "  ")
+
+        self.assertEqual(len(received_events), 1)
+
+        event = received_events[0]
+
+        self.assertEqual(event.event_type, "customer.deactivated")
+        self.assertEqual(event.customer_id, "c1")
+        self.assertEqual(event.payload["email"], "case@example.com")
+
+        # Confidential information must not reach
+        # any general-channel subscriber.
+        self.assertNotIn("reason", event.payload)
+        self.assertNotIn(SECRET, repr(received_events))
+
+        # The internal audit must still retain the reason.
+        self.assertEqual(
+            audit_records(self.s),
+            [{
+                "customer_id": "c1",
+                "actor_id": "u-review",
+                "reason": SECRET
+            }]
+        )
+
 if __name__ == "__main__": unittest.main()

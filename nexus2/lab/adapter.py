@@ -9,6 +9,9 @@ from northstar.notifications import NotificationClient, CustomerNotificationSubs
 from northstar.repository import InMemoryCustomerRepository
 from northstar.services import CustomerLifecycleService
 from northstar.audit import *
+import tempfile
+import os
+
 
 
 def build():
@@ -17,7 +20,12 @@ def build():
     bus = EventBus()
     client = NotificationClient()
     bus.subscribe(CustomerNotificationSubscriber(client))
-    audit_log = InMemoryAudit()
+
+    # Get a temp file to store
+    if Path("TempAuditLog.json").exists():
+        os.remove("TempAuditLog.json")
+
+    audit_log = FileBackedAudit("TempAuditLog.json")
     bus.subscribe(AuditSubcriber(audit_log), EVENT_BUSNAME_AUDIT)
     lifecycle = CustomerLifecycleService(repository, AuthorizationService(), bus)
     return SimpleNamespace(repository=repository, bus=bus, client=client,
