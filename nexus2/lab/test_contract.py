@@ -3,6 +3,10 @@ import unittest
 from adapter import build, audit_records
 from northstar.auth import Actor
 from northstar.errors import AuthorizationError, CustomerNotFoundError
+from northstar.audit import FileBackedAudit
+from pathlib import Path
+import os
+import json
 
 SECRET = "PRIVATE-REASON-42"
 class Contract(unittest.TestCase):
@@ -99,5 +103,20 @@ class Contract(unittest.TestCase):
                 "reason": SECRET
             }]
         )
+
+    def test_10_filebacked_audit_resumes(self):
+        if not Path("test_10").exists():
+            os.mkdir("test_10")
+        with open("test_10/audit_log.json", "w") as f:
+            json.dump([{"customer_id": "c45", "actor_id": "u-review_2", "reason": "PRIVATE-REASON-500"}], f)
+
+        fileAudit = FileBackedAudit("test_10/audit_log.json")
+        fileAudit.writeDeactivation("new_actor_id", "new_customer_id", "new_private_reason")
+
+        entries = fileAudit.getRecords()
+
+        self.assertEqual(len(entries), 2)
+        self.assertIn({"customer_id": "c45", "actor_id": "u-review_2", "reason": "PRIVATE-REASON-500"}, entries)
+        self.assertIn({"customer_id": "new_customer_id", "actor_id": "new_actor_id", "reason": "new_private_reason"}, entries)
 
 if __name__ == "__main__": unittest.main()
